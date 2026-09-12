@@ -5,7 +5,7 @@
 #define EXECUTOR_COMMON_KVM_LOONG64_SYZOS_H
 
 // Guest code running inside Loong64 KVM.
-// This slice implements UEXIT, CODE, IOCSR_WRITE, CSRR, and CSRW.
+// This slice implements UEXIT, CODE, IOCSR_WRITE, CSRR, CSRW, and MEMOP.
 
 #include <linux/kvm.h>
 
@@ -19,6 +19,7 @@ typedef enum {
 	SYZOS_API_IOCSR_WRITE = 100,
 	SYZOS_API_CSRR = 101,
 	SYZOS_API_CSRW = 102,
+	SYZOS_API_MEMOP = 110,
 	SYZOS_API_STOP, // Must be the last one
 } syzos_api_id;
 
@@ -32,6 +33,7 @@ GUEST_CODE static void guest_execute_code(uint32* insns, uint64 size);
 GUEST_CODE static void guest_iocsr_write(uint64 addr, uint64 value);
 GUEST_CODE static void guest_handle_csrr(uint64 cpu, uint32 csr);
 GUEST_CODE static void guest_handle_csrw(uint64 cpu, uint32 csr, uint64 value);
+GUEST_CODE static void guest_handle_memop(uint64 cpu, struct api_call_5* cmd);
 GUEST_CODE static void sync_guest_insns(void);
 
 // Main guest function that interprets the host-provided API command stream.
@@ -80,6 +82,11 @@ guest_main(uint64 size, uint64 cpu)
 				return;
 			struct api_call_2* ccmd = (struct api_call_2*)cmd;
 			guest_handle_csrw(cpu, (uint32)ccmd->args[0], ccmd->args[1]);
+		} else if (call == SYZOS_API_MEMOP) {
+			if (cmd_size < sizeof(struct api_call_5))
+				return;
+			struct api_call_5* ccmd = (struct api_call_5*)cmd;
+			guest_handle_memop(cpu, ccmd);
 		}
 		addr += cmd_size;
 		size -= cmd_size;
@@ -145,6 +152,59 @@ GUEST_CODE static noinline void guest_handle_csrw(uint64 cpu, uint32 csr, uint64
 	sync_guest_insns();
 	void (*fn)(uint64) = (void (*)(uint64))insns;
 	fn(value);
+}
+
+#define LOONG64_SYZOS_MEMOP_WINDOW_SIZE 4096
+
+// Execute a bounded guest memory operation. The syzlang producer selects an
+// aligned address in the mapped stack window. Repeat the range checks here so
+// malformed command streams cannot reach the later exception-recovery scope.
+GUEST_CODE static noinline void guest_handle_memop(uint64 cpu, struct api_call_5* cmd)
+{
+	uint64 base = cmd->args[0];
+	uint64 offset = cmd->args[1];
+	uint64 value = cmd->args[2];
+	uint64 len = cmd->args[3];
+	uint64 op = cmd->args[4];
+	if ((len != 1 && len != 2 && len != 4 && len != 8) ||
+	    (op != 0 && op != 1))
+		return;
+	if (base != LOONG64_ADDR_STACK_BASE ||
+	    offset > LOONG64_SYZOS_MEMOP_WINDOW_SIZE - sizeof(uint64) ||
+	    offset % sizeof(uint64))
+		return;
+	if (offset > (uint64)-1 - base)
+		return;
+	uint64 addr = base + offset;
+	if (len > (uint64)-1 - addr)
+		return;
+
+	asm volatile("dbar 0" ::: "memory");
+	if (op == 1) {
+		if (len == 1)
+			*(volatile uint8*)addr = (uint8)value;
+		else if (len == 2)
+			*(volatile uint16*)addr = (uint16)value;
+		else if (len == 4)
+			*(volatile uint32*)addr = (uint32)value;
+		else
+			*(volatile uint64*)addr = value;
+		asm volatile("dbar 0" ::: "memory");
+		return;
+	}
+
+	uint64 result;
+	if (len == 1)
+		result = *(volatile uint8*)addr;
+	else if (len == 2)
+		result = *(volatile uint16*)addr;
+	else if (len == 4)
+		result = *(volatile uint32*)addr;
+	else
+		result = *(volatile uint64*)addr;
+	asm volatile("dbar 0" ::: "memory");
+	// KS0 is exposed through LoongArch KVM one-reg for host observation.
+	guest_handle_csrw(cpu, 0x30, result);
 }
 
 #endif // EXECUTOR_COMMON_KVM_LOONG64_SYZOS_H

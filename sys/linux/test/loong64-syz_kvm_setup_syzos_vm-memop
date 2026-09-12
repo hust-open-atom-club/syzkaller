@@ -1,0 +1,34 @@
+#
+# requires: arch=loong64
+#
+
+r0 = openat$kvm(0xffffffffffffff9c, &(0x7f0000000000), 0x0, 0x0)
+r1 = ioctl$KVM_CREATE_VM(r0, AUTO, 0x0)
+r2 = syz_kvm_setup_syzos_vm$loong64(r1, &(0x7f0000c00000/0x400000)=nil)
+
+# Exercise 1, 2, 4, and 8-byte writes and reads in a mapped stack page.
+# Read results are copied to KS0 by the guest runtime before each UEXIT.
+
+r3 = syz_kvm_add_vcpu$loong64(r2, &AUTO={0x0, &AUTO=[@memop={AUTO, AUTO, {0x80024000, 0x0, 0x7f, 0x1, 0x1}}, @memop={AUTO, AUTO, {0x80024000, 0x0, 0x0, 0x1, 0x0}}, @uexit={AUTO, AUTO, 0x101}, @memop={AUTO, AUTO, {0x80024000, 0x8, 0x1234, 0x2, 0x1}}, @memop={AUTO, AUTO, {0x80024000, 0x8, 0x0, 0x2, 0x0}}, @uexit={AUTO, AUTO, 0x102}, @memop={AUTO, AUTO, {0x80024000, 0x10, 0x12345678, 0x4, 0x1}}, @memop={AUTO, AUTO, {0x80024000, 0x10, 0x0, 0x4, 0x0}}, @uexit={AUTO, AUTO, 0x104}, @memop={AUTO, AUTO, {0x80024000, 0x18, 0x123456789abcdef0, 0x8, 0x1}}, @memop={AUTO, AUTO, {0x80024000, 0x18, 0x0, 0x8, 0x0}}, @uexit={AUTO, AUTO, 0x108}, @uexit={AUTO, AUTO, 0xffffffffffffffff}], AUTO}, 0x0, 0x0)
+
+r4 = ioctl$KVM_GET_VCPU_MMAP_SIZE(r0, AUTO)
+r5 = mmap$KVM_VCPU(&(0x7f0000010000/0x4000)=nil, r4, 0x3, 0x1, r3, 0x0)
+
+ioctl$KVM_RUN(r3, AUTO, 0x0)
+syz_kvm_assert_syzos_uexit$loong64(r3, r5, 0x101)
+syz_kvm_assert_reg$loong64(r3, 0x9030000000010180, 0x7f)
+
+ioctl$KVM_RUN(r3, AUTO, 0x0)
+syz_kvm_assert_syzos_uexit$loong64(r3, r5, 0x102)
+syz_kvm_assert_reg$loong64(r3, 0x9030000000010180, 0x1234)
+
+ioctl$KVM_RUN(r3, AUTO, 0x0)
+syz_kvm_assert_syzos_uexit$loong64(r3, r5, 0x104)
+syz_kvm_assert_reg$loong64(r3, 0x9030000000010180, 0x12345678)
+
+ioctl$KVM_RUN(r3, AUTO, 0x0)
+syz_kvm_assert_syzos_uexit$loong64(r3, r5, 0x108)
+syz_kvm_assert_reg$loong64(r3, 0x9030000000010180, 0x123456789abcdef0)
+
+ioctl$KVM_RUN(r3, AUTO, 0x0)
+syz_kvm_assert_syzos_uexit$loong64(r3, r5, 0xffffffffffffffff)

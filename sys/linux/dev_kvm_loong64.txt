@@ -60,6 +60,20 @@ syzos_api_csrw$loong64 {
 	value	int64
 }
 
+# Read from or write to an aligned address in the first 4 KiB of the mapped
+# VCPU stack page. The base must match LOONG64_ADDR_STACK_BASE in executor/kvm.h.
+# Read results are stored in guest CSR KS0 (0x30), which is observable through
+# KVM_GET_ONE_REG.
+loong64_syzos_memop_len = 1, 2, 4, 8
+
+syzos_api_memop$loong64 {
+	base	const[0x80024000, int64]
+	offset	int64[0:4088, 8]
+	value	int64
+	len	flags[loong64_syzos_memop_len, int64]
+	op	int64[0:1]
+}
+
 loong64_csr_or_any [
 	valid	flags[loong64_syzos_csr, int64]
 	any	int64
@@ -75,6 +89,7 @@ syzos_api_call$loong64 [
 	iocsr_write	syzos_api$loong64[100, syzos_api_iocsr_write$loong64]
 	csrr		syzos_api$loong64[101, syzos_api_csrr$loong64]
 	csrw		syzos_api$loong64[102, syzos_api_csrw$loong64]
+	memop		syzos_api$loong64[110, syzos_api_memop$loong64]
 ] [varlen]
 
 syz_kvm_assert_syzos_uexit$loong64(cpufd fd_kvmcpu, run kvm_run_ptr, exitcode int64) (no_generate)
