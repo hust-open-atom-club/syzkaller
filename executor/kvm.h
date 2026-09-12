@@ -590,7 +590,7 @@
 #define LOONG64_ADDR_USER_CODE 0x80000000
 // Location of the SYZOS guest code. Name shared with other SYZOS arches.
 #define SYZOS_ADDR_EXECUTOR_CODE (LOONG64_ADDR_USER_CODE + KVM_MAX_VCPU * LOONG64_KVM_PAGE_SIZE)
-// Scratch page reserved for future runtime-generated guest code.
+// Scratch page for runtime-generated guest code.
 #define LOONG64_ADDR_SCRATCH_CODE (SYZOS_ADDR_EXECUTOR_CODE + 4 * LOONG64_KVM_PAGE_SIZE)
 // Per-VCPU stack base (one page per VCPU).
 #define LOONG64_ADDR_STACK_BASE (LOONG64_ADDR_SCRATCH_CODE + LOONG64_KVM_PAGE_SIZE)

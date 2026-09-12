@@ -6,7 +6,7 @@
 
 // This file is shared between executor and csource package.
 
-// Loong64 KVM pseudo-syscalls: minimal setup_cpu plus full-SYZOS UEXIT path.
+// Loong64 KVM pseudo-syscalls: setup_cpu and the core SYZOS command path.
 
 #include <errno.h>
 #include <stdint.h>

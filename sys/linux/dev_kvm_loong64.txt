@@ -40,9 +40,41 @@ type syzos_api$loong64[NUM, PAYLOAD] {
 	payload	PAYLOAD
 }
 
-# First Loong64 SYZOS slice only exposes UEXIT.
+# Loong64 core SYZOS command payloads.
+syzos_api_code$loong64 {
+	insns	text[target]
+	ret	const[0x4c000020, int32]
+} [packed]
+
+syzos_api_iocsr_write$loong64 {
+	addr	int64
+	value	int64
+}
+
+syzos_api_csrr$loong64 {
+	csr	loong64_csr_or_any
+}
+
+syzos_api_csrw$loong64 {
+	csr	loong64_csr_or_any
+	value	int64
+}
+
+loong64_csr_or_any [
+	valid	flags[loong64_syzos_csr, int64]
+	any	int64
+]
+
+# Hardware-backed CSRs listed by kvm_init_gcsr_flag() and used by the current
+# one-reg seeds. Arbitrary 14-bit values remain available through @any.
+loong64_syzos_csr = 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0xc, 0x20, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x40, 0x41, 0x42, 0x43, 0x44, 0x60
+
 syzos_api_call$loong64 [
-	uexit	syzos_api$loong64[0, intptr]
+	uexit		syzos_api$loong64[0, intptr]
+	code		syzos_api$loong64[10, syzos_api_code$loong64]
+	iocsr_write	syzos_api$loong64[100, syzos_api_iocsr_write$loong64]
+	csrr		syzos_api$loong64[101, syzos_api_csrr$loong64]
+	csrw		syzos_api$loong64[102, syzos_api_csrw$loong64]
 ] [varlen]
 
 syz_kvm_assert_syzos_uexit$loong64(cpufd fd_kvmcpu, run kvm_run_ptr, exitcode int64) (no_generate)
